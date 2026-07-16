@@ -1,0 +1,121 @@
+﻿using System.Diagnostics;
+using EmulationManager.Configuration;
+using EmulationManager.Models;
+
+namespace EmulationManager.Services;
+
+public sealed class EmulatorService
+{
+    private readonly AppPaths paths;
+
+    public EmulatorService(AppPaths paths)
+    {
+        this.paths = paths;
+    }
+
+    public EmulatorBuild EdenStable =>
+        new()
+        {
+            Name = "Eden Stable",
+            ExecutablePath = paths.EdenStablePath
+        };
+
+    public EmulatorBuild EdenNightly =>
+        new()
+        {
+            Name = "Eden Nightly",
+            ExecutablePath = paths.EdenNightlyPath
+        };
+
+    public Process Launch(
+        EmulatorBuild emulator,
+        string romPath)
+    {
+        string logDirectory = Path.Combine(
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+            "EmulationManager",
+            "Logs");
+
+        string logPath = Path.Combine(
+            logDirectory,
+            "launcher.log");
+
+        Directory.CreateDirectory(logDirectory);
+
+        void WriteLog(string message)
+        {
+            File.AppendAllText(
+                logPath,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}" +
+                Environment.NewLine);
+        }
+
+        WriteLog("--------------------------------------------------");
+        WriteLog($"Launch requested: {emulator.Name}");
+        WriteLog($"Executable: {emulator.ExecutablePath}");
+        WriteLog($"ROM: {romPath}");
+        WriteLog($"Manager PID: {Environment.ProcessId}");
+
+        if (!emulator.IsInstalled)
+        {
+            throw new FileNotFoundException(
+                $"{emulator.Name} was not found.",
+                emulator.ExecutablePath);
+        }
+
+        if (!File.Exists(romPath))
+        {
+            throw new FileNotFoundException(
+                "The selected game file was not found.",
+                romPath);
+        }
+
+        string workingDirectory =
+            Path.GetDirectoryName(emulator.ExecutablePath)
+            ?? throw new InvalidOperationException(
+                "The emulator working directory could not be determined.");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = emulator.ExecutablePath,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false
+        };
+
+        startInfo.ArgumentList.Add(romPath);
+
+        string[] steamVariables =
+        [
+            "SteamAppId",
+            "SteamGameId",
+            "SteamOverlayGameId",
+            "SteamClientLaunch",
+            "SteamEnv"
+        ];
+
+        foreach (string variable in steamVariables)
+        {
+            bool removed =
+                startInfo.Environment.Remove(variable);
+
+            WriteLog(
+                $"Removed {variable} from Eden environment: {removed}");
+        }
+
+        WriteLog($"Working directory: {workingDirectory}");
+        WriteLog($"Argument 0: {romPath}");
+
+        Process? process = Process.Start(startInfo);
+
+        if (process is null)
+        {
+            throw new InvalidOperationException(
+                "Windows did not return an Eden process.");
+        }
+
+        WriteLog($"Eden started successfully. PID: {process.Id}");
+
+        return process;
+    }
+}

@@ -1,0 +1,579 @@
+﻿using System.Diagnostics;
+
+namespace EmulationManager;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main()
+    {
+        ApplicationConfiguration.Initialize();
+        Application.Run(new MainForm());
+    }
+}
+
+public sealed class MainForm : Form
+{
+    private const string RomRoot =
+        @"D:\Games\ROMs";
+
+    private const string StableEdenPath =
+        @"C:\Emulation\Emulators\Eden\eden.exe";
+
+    private const string NightlyEdenPath =
+        @"C:\Emulation\Emulators\Eden Nightly\eden.exe";
+
+    private readonly ListView gameList = new();
+    private readonly Label romStatusLabel = new();
+    private readonly Label stableStatusLabel = new();
+    private readonly Label nightlyStatusLabel = new();
+    private readonly Label summaryLabel = new();
+
+    public MainForm()
+    {
+        Text = "Emulation Manager";
+        StartPosition = FormStartPosition.CenterScreen;
+        MinimumSize = new Size(900, 600);
+        Size = new Size(1100, 700);
+
+        BuildInterface();
+
+        Shown += (_, _) => ScanEverything();
+    }
+
+    private void BuildInterface()
+    {
+        var topPanel = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 160,
+            Padding = new Padding(16)
+        };
+
+        var titleLabel = new Label
+        {
+            Text = "Emulation Manager",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 20, FontStyle.Bold),
+            Location = new Point(16, 12)
+        };
+
+        romStatusLabel.AutoSize = true;
+        romStatusLabel.Location = new Point(18, 58);
+        romStatusLabel.Font = new Font("Segoe UI", 10);
+
+        stableStatusLabel.AutoSize = true;
+        stableStatusLabel.Location = new Point(18, 82);
+        stableStatusLabel.Font = new Font("Segoe UI", 10);
+
+        nightlyStatusLabel.AutoSize = true;
+        nightlyStatusLabel.Location = new Point(18, 106);
+        nightlyStatusLabel.Font = new Font("Segoe UI", 10);
+
+        var scanButton = new Button
+        {
+            Text = "Scan Library",
+            Width = 140,
+            Height = 38,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+
+        scanButton.Click += (_, _) => ScanEverything();
+
+        var openRomFolderButton = new Button
+        {
+            Text = "Open ROM Folder",
+            Width = 140,
+            Height = 38,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+
+        openRomFolderButton.Click += (_, _) => OpenFolder(RomRoot);
+
+        var launchButton = new Button
+        {
+            Text = "Launch Selected",
+            Width = 140,
+            Height = 38,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+
+        launchButton.Click += (_, _) => LaunchSelectedGame();
+
+        topPanel.Resize += (_, _) =>
+        {
+            int right = topPanel.ClientSize.Width - 20;
+
+            scanButton.Left = right - scanButton.Width;
+            scanButton.Top = 16;
+
+            openRomFolderButton.Left =
+                right - openRomFolderButton.Width;
+            openRomFolderButton.Top = 62;
+
+            launchButton.Left =
+                right - launchButton.Width;
+            launchButton.Top = 108;
+        };
+
+        topPanel.Controls.Add(titleLabel);
+        topPanel.Controls.Add(romStatusLabel);
+        topPanel.Controls.Add(stableStatusLabel);
+        topPanel.Controls.Add(nightlyStatusLabel);
+        topPanel.Controls.Add(scanButton);
+        topPanel.Controls.Add(openRomFolderButton);
+        topPanel.Controls.Add(launchButton);
+
+        summaryLabel.Dock = DockStyle.Top;
+        summaryLabel.Height = 38;
+        summaryLabel.Padding = new Padding(16, 8, 0, 0);
+        summaryLabel.Font =
+            new Font("Segoe UI", 10, FontStyle.Bold);
+
+        gameList.Dock = DockStyle.Fill;
+        gameList.View = View.Details;
+        gameList.FullRowSelect = true;
+        gameList.GridLines = true;
+        gameList.HideSelection = false;
+        gameList.MultiSelect = false;
+        gameList.Font = new Font("Segoe UI", 10);
+
+        gameList.Columns.Add("Game", 230);
+        gameList.Columns.Add("Console", 160);
+        gameList.Columns.Add("Type", 110);
+        gameList.Columns.Add("Filename", 360);
+        gameList.Columns.Add("Size", 100);
+        gameList.Columns.Add("Full Path", 600);
+
+        gameList.DoubleClick += (_, _) =>
+            LaunchSelectedGame();
+
+        Controls.Add(gameList);
+        Controls.Add(summaryLabel);
+        Controls.Add(topPanel);
+    }
+
+    private void ScanEverything()
+    {
+        CheckPaths();
+        ScanLibrary();
+    }
+
+    private void CheckPaths()
+    {
+        romStatusLabel.Text =
+            Directory.Exists(RomRoot)
+                ? $"ROM library: Found - {RomRoot}"
+                : $"ROM library: Missing - {RomRoot}";
+
+        stableStatusLabel.Text =
+            File.Exists(StableEdenPath)
+                ? $"Eden Stable: Found - {StableEdenPath}"
+                : $"Eden Stable: Missing - {StableEdenPath}";
+
+        nightlyStatusLabel.Text =
+            File.Exists(NightlyEdenPath)
+                ? $"Eden Nightly: Found - {NightlyEdenPath}"
+                : $"Eden Nightly: Missing - {NightlyEdenPath}";
+    }
+
+    private void ScanLibrary()
+    {
+        gameList.BeginUpdate();
+        gameList.Items.Clear();
+
+        try
+        {
+            if (!Directory.Exists(RomRoot))
+            {
+                summaryLabel.Text =
+                    "ROM library folder was not found.";
+
+                return;
+            }
+
+            string[] supportedExtensions =
+            [
+                ".nsp", ".xci", ".iso", ".rvz", ".wbfs",
+                ".chd", ".cue", ".bin", ".cso", ".pbp",
+                ".zip", ".7z", ".nes", ".sfc", ".smc",
+                ".gba", ".gb", ".gbc", ".n64", ".z64",
+                ".v64", ".nds", ".3ds"
+            ];
+
+            int fileCount = 0;
+
+            var games = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (string systemFolder in
+                     Directory.EnumerateDirectories(RomRoot))
+            {
+                string console =
+                    Path.GetFileName(systemFolder);
+
+                foreach (string file in
+                         Directory.EnumerateFiles(
+                             systemFolder,
+                             "*",
+                             SearchOption.AllDirectories))
+                {
+                    string extension =
+                        Path.GetExtension(file)
+                            .ToLowerInvariant();
+
+                    if (!supportedExtensions.Contains(extension))
+                    {
+                        continue;
+                    }
+
+                    var fileInfo = new FileInfo(file);
+
+                    string gameName =
+                        DetermineGameName(systemFolder, file);
+
+                    string contentType =
+                        DetermineContentType(file);
+
+                    string size =
+                        FormatFileSize(fileInfo.Length);
+
+                    var item = new ListViewItem(gameName);
+
+                    item.SubItems.Add(console);
+                    item.SubItems.Add(contentType);
+                    item.SubItems.Add(fileInfo.Name);
+                    item.SubItems.Add(size);
+                    item.SubItems.Add(fileInfo.FullName);
+
+                    item.Tag = fileInfo.FullName;
+
+                    gameList.Items.Add(item);
+
+                    fileCount++;
+                    games.Add($"{console}|{gameName}");
+                }
+            }
+
+            summaryLabel.Text =
+                $"Found {games.Count} game folder(s) and " +
+                $"{fileCount} supported game file(s).";
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            MessageBox.Show(
+                $"Access was denied while scanning:\n\n" +
+                exception.Message,
+                "Scan Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                exception.Message,
+                "Scan Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            gameList.EndUpdate();
+        }
+    }
+
+    private void LaunchSelectedGame()
+    {
+        if (gameList.SelectedItems.Count == 0)
+        {
+            MessageBox.Show(
+                "Select a base game first.",
+                "Nothing Selected",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
+
+        ListViewItem selected =
+            gameList.SelectedItems[0];
+
+        string gameName =
+            selected.SubItems[0].Text;
+
+        string console =
+            selected.SubItems[1].Text;
+
+        string contentType =
+            selected.SubItems[2].Text;
+
+        if (selected.Tag is not string romPath ||
+            !File.Exists(romPath))
+        {
+            MessageBox.Show(
+                "The selected game file could not be found.",
+                "File Missing",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+
+            return;
+        }
+
+        if (contentType.Equals(
+                "Update",
+                StringComparison.OrdinalIgnoreCase) ||
+            contentType.Equals(
+                "DLC",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                "Select the Base Game row, not the update or DLC.",
+                "Select Base Game",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
+
+        if (!console.Equals(
+                "Switch",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                $"Launching {console} games will be added later.",
+                "Emulator Not Configured",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
+
+        string? emulatorPath =
+            ChooseEdenBuild(gameName);
+
+        if (string.IsNullOrWhiteSpace(emulatorPath))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = emulatorPath,
+                Arguments = $"\"{romPath}\"",
+                WorkingDirectory =
+                    Path.GetDirectoryName(emulatorPath)!,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"Eden could not launch the game:\n\n" +
+                exception.Message,
+                "Launch Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private string? ChooseEdenBuild(string gameName)
+    {
+        bool stableExists =
+            File.Exists(StableEdenPath);
+
+        bool nightlyExists =
+            File.Exists(NightlyEdenPath);
+
+        if (!stableExists && !nightlyExists)
+        {
+            MessageBox.Show(
+                "Neither Eden Stable nor Eden Nightly was found.",
+                "Eden Missing",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+
+            return null;
+        }
+
+        if (stableExists && !nightlyExists)
+        {
+            return StableEdenPath;
+        }
+
+        if (!stableExists && nightlyExists)
+        {
+            return NightlyEdenPath;
+        }
+
+        using var form = new Form
+        {
+            Text = $"Launch {gameName}",
+            StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(420, 210),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            ShowInTaskbar = false
+        };
+
+        var label = new Label
+        {
+            Text = "Choose which Eden version to use:",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 11),
+            Location = new Point(24, 24)
+        };
+
+        var stableButton = new Button
+        {
+            Text = "Eden Stable",
+            Width = 165,
+            Height = 48,
+            Location = new Point(24, 76)
+        };
+
+        var nightlyButton = new Button
+        {
+            Text = "Eden Nightly",
+            Width = 165,
+            Height = 48,
+            Location = new Point(225, 76)
+        };
+
+        var cancelButton = new Button
+        {
+            Text = "Cancel",
+            Width = 110,
+            Height = 34,
+            Location = new Point(280, 150),
+            DialogResult = DialogResult.Cancel
+        };
+
+        string? selectedPath = null;
+
+        stableButton.Click += (_, _) =>
+        {
+            selectedPath = StableEdenPath;
+            form.DialogResult = DialogResult.OK;
+            form.Close();
+        };
+
+        nightlyButton.Click += (_, _) =>
+        {
+            selectedPath = NightlyEdenPath;
+            form.DialogResult = DialogResult.OK;
+            form.Close();
+        };
+
+        form.CancelButton = cancelButton;
+
+        form.Controls.Add(label);
+        form.Controls.Add(stableButton);
+        form.Controls.Add(nightlyButton);
+        form.Controls.Add(cancelButton);
+
+        DialogResult result = form.ShowDialog(this);
+
+        return result == DialogResult.OK
+            ? selectedPath
+            : null;
+    }
+
+    private static string DetermineGameName(
+        string systemFolder,
+        string file)
+    {
+        string relativePath =
+            Path.GetRelativePath(systemFolder, file);
+
+        string[] parts =
+            relativePath.Split(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+
+        if (parts.Length > 1)
+        {
+            return parts[0];
+        }
+
+        return Path.GetFileNameWithoutExtension(file);
+    }
+
+    private static string DetermineContentType(string file)
+    {
+        string normalized =
+            file.Replace(
+                Path.AltDirectorySeparatorChar,
+                Path.DirectorySeparatorChar);
+
+        string[] parts =
+            normalized.Split(
+                Path.DirectorySeparatorChar);
+
+        if (parts.Any(part =>
+                part.Equals(
+                    "Updates",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Update";
+        }
+
+        if (parts.Any(part =>
+                part.Equals(
+                    "DLC",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return "DLC";
+        }
+
+        if (parts.Any(part =>
+                part.Equals(
+                    "Base",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Base Game";
+        }
+
+        return "Game";
+    }
+
+    private static void OpenFolder(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            MessageBox.Show(
+                $"Folder not found:\n\n{folder}",
+                "Folder Missing",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = folder,
+            UseShellExecute = true
+        });
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] units =
+            ["B", "KB", "MB", "GB", "TB"];
+
+        double size = bytes;
+        int unitIndex = 0;
+
+        while (size >= 1024 &&
+               unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return $"{size:0.##} {units[unitIndex]}";
+    }
+}

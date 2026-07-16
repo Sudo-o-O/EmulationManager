@@ -1,0 +1,93 @@
+﻿$path = "C:\Emulation\EmulationManager\Services\EmulatorService.cs"
+
+$content = @'
+using System.Diagnostics;
+using EmulationManager.Configuration;
+using EmulationManager.Models;
+
+namespace EmulationManager.Services;
+
+public sealed class EmulatorService
+{
+    private readonly AppPaths paths;
+
+    public EmulatorService(AppPaths paths)
+    {
+        this.paths = paths;
+    }
+
+    public EmulatorBuild EdenStable =>
+        new()
+        {
+            Name = "Eden Stable",
+            ExecutablePath = paths.EdenStablePath
+        };
+
+    public EmulatorBuild EdenNightly =>
+        new()
+        {
+            Name = "Eden Nightly",
+            ExecutablePath = paths.EdenNightlyPath
+        };
+
+    public Process Launch(
+        EmulatorBuild emulator,
+        string romPath)
+    {
+        if (!emulator.IsInstalled)
+        {
+            throw new FileNotFoundException(
+                $"{emulator.Name} was not found.",
+                emulator.ExecutablePath);
+        }
+
+        if (!File.Exists(romPath))
+        {
+            throw new FileNotFoundException(
+                "The selected game file was not found.",
+                romPath);
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = emulator.ExecutablePath,
+            WorkingDirectory =
+                Path.GetDirectoryName(emulator.ExecutablePath)!,
+            UseShellExecute = false
+        };
+
+        startInfo.ArgumentList.Add(romPath);
+
+        // Prevent Eden from inheriting the non-Steam shortcut's
+        // game identity and overlay environment.
+        string[] steamVariables =
+        [
+            "SteamAppId",
+            "SteamGameId",
+            "SteamOverlayGameId",
+            "SteamClientLaunch",
+            "SteamEnv"
+        ];
+
+        foreach (string variable in steamVariables)
+        {
+            startInfo.Environment.Remove(variable);
+        }
+
+        Process? process = Process.Start(startInfo);
+
+        return process ??
+            throw new InvalidOperationException(
+                "Windows did not return an emulator process.");
+    }
+}
+'@
+
+Set-Content `
+    -LiteralPath $path `
+    -Value $content `
+    -Encoding UTF8
+
+Set-Location "C:\Emulation\EmulationManager"
+
+dotnet build --configuration Release

@@ -1,0 +1,338 @@
+﻿using System.Diagnostics;
+using EmulationManager.Configuration;
+using EmulationManager.Services;
+
+namespace EmulationManager.Forms;
+
+public sealed class SettingsForm : Form
+{
+    private readonly SettingsService settingsService;
+
+    private readonly TextBox romRootTextBox = new();
+    private readonly TextBox stableTextBox = new();
+    private readonly TextBox nightlyTextBox = new();
+
+    public AppSettings? SavedSettings { get; private set; }
+
+    public SettingsForm(
+        SettingsService settingsService,
+        AppSettings currentSettings)
+    {
+        this.settingsService = settingsService;
+
+        Text = "Emulation Manager Settings";
+        StartPosition = FormStartPosition.CenterParent;
+        ClientSize = new Size(760, 390);
+        MinimumSize = new Size(700, 390);
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = false;
+
+        BuildInterface(currentSettings);
+    }
+
+    private void BuildInterface(
+        AppSettings currentSettings)
+    {
+        var titleLabel = new Label
+        {
+            Text = "Library and emulator locations",
+            AutoSize = true,
+            Font = new Font(
+                "Segoe UI",
+                16,
+                FontStyle.Bold),
+            Location = new Point(22, 18)
+        };
+
+        var helpLabel = new Label
+        {
+            Text =
+                "Choose the ROM library and Eden executable locations used on this computer.",
+            AutoSize = true,
+            Location = new Point(24, 56)
+        };
+
+        var romLabel = new Label
+        {
+            Text = "ROM library folder",
+            AutoSize = true,
+            Location = new Point(24, 98)
+        };
+
+        romRootTextBox.Text = currentSettings.RomRoot;
+        romRootTextBox.Location = new Point(24, 120);
+        romRootTextBox.Size = new Size(600, 27);
+
+        var romBrowseButton = new Button
+        {
+            Text = "Browse...",
+            Location = new Point(638, 118),
+            Size = new Size(95, 31)
+        };
+
+        romBrowseButton.Click += (_, _) =>
+            BrowseForRomFolder();
+
+        var stableLabel = new Label
+        {
+            Text = "Eden Stable executable",
+            AutoSize = true,
+            Location = new Point(24, 165)
+        };
+
+        stableTextBox.Text =
+            currentSettings.EdenStablePath;
+
+        stableTextBox.Location =
+            new Point(24, 187);
+
+        stableTextBox.Size =
+            new Size(600, 27);
+
+        var stableBrowseButton = new Button
+        {
+            Text = "Browse...",
+            Location = new Point(638, 185),
+            Size = new Size(95, 31)
+        };
+
+        stableBrowseButton.Click += (_, _) =>
+            BrowseForExecutable(stableTextBox);
+
+        var nightlyLabel = new Label
+        {
+            Text = "Eden Nightly executable",
+            AutoSize = true,
+            Location = new Point(24, 232)
+        };
+
+        nightlyTextBox.Text =
+            currentSettings.EdenNightlyPath;
+
+        nightlyTextBox.Location =
+            new Point(24, 254);
+
+        nightlyTextBox.Size =
+            new Size(600, 27);
+
+        var nightlyBrowseButton = new Button
+        {
+            Text = "Browse...",
+            Location = new Point(638, 252),
+            Size = new Size(95, 31)
+        };
+
+        nightlyBrowseButton.Click += (_, _) =>
+            BrowseForExecutable(nightlyTextBox);
+
+        var openSettingsButton = new Button
+        {
+            Text = "Open Settings Folder",
+            Location = new Point(24, 320),
+            Size = new Size(160, 36)
+        };
+
+        openSettingsButton.Click += (_, _) =>
+            OpenSettingsFolder();
+
+        var saveButton = new Button
+        {
+            Text = "Save",
+            Location = new Point(506, 320),
+            Size = new Size(105, 36)
+        };
+
+        saveButton.Click += (_, _) =>
+            SaveSettings();
+
+        var cancelButton = new Button
+        {
+            Text = "Cancel",
+            Location = new Point(628, 320),
+            Size = new Size(105, 36),
+            DialogResult = DialogResult.Cancel
+        };
+
+        AcceptButton = saveButton;
+        CancelButton = cancelButton;
+
+        Controls.Add(titleLabel);
+        Controls.Add(helpLabel);
+        Controls.Add(romLabel);
+        Controls.Add(romRootTextBox);
+        Controls.Add(romBrowseButton);
+        Controls.Add(stableLabel);
+        Controls.Add(stableTextBox);
+        Controls.Add(stableBrowseButton);
+        Controls.Add(nightlyLabel);
+        Controls.Add(nightlyTextBox);
+        Controls.Add(nightlyBrowseButton);
+        Controls.Add(openSettingsButton);
+        Controls.Add(saveButton);
+        Controls.Add(cancelButton);
+    }
+
+    private void BrowseForRomFolder()
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description =
+                "Select the folder containing console folders such as Switch, PS2, and GameCube.",
+
+            ShowNewFolderButton = true,
+
+            InitialDirectory =
+                Directory.Exists(romRootTextBox.Text)
+                    ? romRootTextBox.Text
+                    : string.Empty
+        };
+
+        if (dialog.ShowDialog(this) ==
+            DialogResult.OK)
+        {
+            romRootTextBox.Text =
+                dialog.SelectedPath;
+        }
+    }
+
+    private void BrowseForExecutable(
+        TextBox destinationTextBox)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Select eden.exe",
+            Filter =
+                "Eden executable (eden.exe)|eden.exe|" +
+                "Executable files (*.exe)|*.exe|" +
+                "All files (*.*)|*.*",
+
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        string currentPath =
+            destinationTextBox.Text;
+
+        if (File.Exists(currentPath))
+        {
+            dialog.InitialDirectory =
+                Path.GetDirectoryName(currentPath);
+
+            dialog.FileName =
+                Path.GetFileName(currentPath);
+        }
+
+        if (dialog.ShowDialog(this) ==
+            DialogResult.OK)
+        {
+            destinationTextBox.Text =
+                dialog.FileName;
+        }
+    }
+
+    private void SaveSettings()
+    {
+        string romRoot =
+            romRootTextBox.Text.Trim();
+
+        string stablePath =
+            stableTextBox.Text.Trim();
+
+        string nightlyPath =
+            nightlyTextBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(romRoot))
+        {
+            MessageBox.Show(
+                "Choose a ROM library folder.",
+                "ROM Folder Required",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
+            romRootTextBox.Focus();
+            return;
+        }
+
+        if (!Directory.Exists(romRoot))
+        {
+            DialogResult continueResult =
+                MessageBox.Show(
+                    "The selected ROM folder does not currently exist.\n\n" +
+                    romRoot +
+                    "\n\nSave it anyway?",
+                    "ROM Folder Not Found",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+            if (continueResult != DialogResult.Yes)
+            {
+                return;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(stablePath) &&
+            !File.Exists(stablePath))
+        {
+            DialogResult continueResult =
+                MessageBox.Show(
+                    "The Eden Stable executable was not found.\n\n" +
+                    stablePath +
+                    "\n\nSave it anyway?",
+                    "Stable Build Not Found",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+            if (continueResult != DialogResult.Yes)
+            {
+                return;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(nightlyPath) &&
+            !File.Exists(nightlyPath))
+        {
+            DialogResult continueResult =
+                MessageBox.Show(
+                    "The Eden Nightly executable was not found.\n\n" +
+                    nightlyPath +
+                    "\n\nSave it anyway?",
+                    "Nightly Build Not Found",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+            if (continueResult != DialogResult.Yes)
+            {
+                return;
+            }
+        }
+
+        SavedSettings = new AppSettings
+        {
+            RomRoot = romRoot,
+            EdenStablePath = stablePath,
+            EdenNightlyPath = nightlyPath
+        };
+
+        settingsService.Save(SavedSettings);
+
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+
+    private void OpenSettingsFolder()
+    {
+        Directory.CreateDirectory(
+            settingsService.SettingsDirectory);
+
+        Process.Start(
+            new ProcessStartInfo
+            {
+                FileName =
+                    settingsService.SettingsDirectory,
+
+                UseShellExecute = true
+            });
+    }
+}
