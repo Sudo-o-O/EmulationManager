@@ -3,6 +3,8 @@ using EmulationManager.Forms;
 using EmulationManager.LaunchStrategies;
 using EmulationManager.Models;
 using EmulationManager.Services;
+using EmulationManager.Metadata;
+using EmulationManager.Switch;
 
 
 
@@ -35,6 +37,30 @@ internal static class Program
 
         LibraryScanner libraryScanner = new(paths);
 
+
+        SwitchPackageValidator switchPackageValidator =
+            new();
+
+        SwitchPackageReader switchPackageReader =
+            new(switchPackageValidator);
+
+        SwitchKeyLoader switchKeyLoader =
+            new();
+
+        GameMetadataService metadataService =
+            new(
+            [
+                new SwitchMetadataProvider(
+                    switchPackageReader,
+                    switchKeyLoader,
+                    settings.Switch.ProdKeysPath),
+
+                new FilenameSwitchMetadataProvider()
+            ]);
+
+        GameIdService gameIdService =
+            new(metadataService);
+            
         if (LaunchArguments.TryParse(
                 args,
                 out LaunchArguments? launchArguments))
