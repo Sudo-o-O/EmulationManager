@@ -31,3 +31,14 @@ AppData/
 
 # OS
 .DS_Store
+
+# Nintendo Switch keys
+*.keys
+
+# Certificates
+*.pem
+*.cert
+*.pfx
+
+# Local settings
+settings.json

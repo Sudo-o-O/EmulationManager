@@ -2,6 +2,7 @@
 using EmulationManager.Configuration;
 using EmulationManager.Models;
 using EmulationManager.Services;
+using EmulationManager.Switch;
 
 namespace EmulationManager.Forms;
 
@@ -405,6 +406,18 @@ public sealed class SettingsForm : Form
         }
     }
 
+
+    private sealed class SettingsValidationItem
+    {
+        public required string Name { get; init; }
+
+        public required bool IsValid { get; init; }
+
+        public required string Message { get; init; }
+
+        public bool IsOptional { get; init; }
+    }
+
     private void SaveSettings()
     {
         string romRoot =
@@ -415,58 +428,63 @@ public sealed class SettingsForm : Form
 
         string nightlyPath =
             nightlyTextBox.Text.Trim();
-        
+
         string prodKeysPath =
             prodKeysTextBox.Text.Trim();
 
         string titleKeysPath =
             titleKeysTextBox.Text.Trim();
 
-        if (string.IsNullOrWhiteSpace(romRoot))
-        {
-            MessageBox.Show(
-                "Choose a ROM library folder.",
-                "ROM Folder Required",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-
-            romRootTextBox.Focus();
-            return;
-        }
-
-        if (!ValidatePath(
+        List<SettingsValidationItem> validationResults =
+        [
+            ValidateFolder(
                 romRoot,
-                isDirectory: true,
-                "ROM library folder"))
-        {
-            return;
-        }
+                "ROM library",
+                required: true),
 
-        if (!ValidateOptionalExecutable(
+            ValidateExecutable(
                 stablePath,
-                "Eden Stable"))
-        {
-            return;
-        }
+                "Eden Stable",
+                required: false),
 
-        if (!ValidateOptionalExecutable(
+            ValidateExecutable(
                 nightlyPath,
-                "Eden Nightly"))
+                "Eden Nightly",
+                required: false),
+
+            ValidateKeysFile(
+                prodKeysPath,
+                "prod.keys",
+                required: true),
+
+            ValidateKeysFile(
+                titleKeysPath,
+                "title.keys",
+                required: false)
+        ];
+
+        bool hasConfiguredEmulator =
+            !string.IsNullOrWhiteSpace(stablePath) ||
+            !string.IsNullOrWhiteSpace(nightlyPath);
+
+        if (!hasConfiguredEmulator)
         {
-            return;
-        }
-        
-        if (!ValidateOptionalKeysFile(
-            prodKeysPath,
-            "prod.keys"))
-        {
-            return;
+            validationResults.Add(
+                new SettingsValidationItem
+                {
+                    Name = "Nintendo Switch emulator",
+                    IsValid = false,
+                    Message =
+                        "Configure Eden Stable, Eden Nightly, or both."
+                });
         }
 
-        if (!ValidateOptionalKeysFile(
-                titleKeysPath,
-                "title.keys"))
+        if (validationResults.Any(result => !result.IsValid))
         {
+            ShowValidationReport(
+                validationResults,
+                settingsSaved: false);
+
             return;
         }
 
@@ -508,81 +526,179 @@ public sealed class SettingsForm : Form
             {
                 ProdKeysPath = prodKeysPath,
                 TitleKeysPath = titleKeysPath
-            },
+            }
         };
 
         settingsService.Save(SavedSettings);
+
+        ShowValidationReport(
+            validationResults,
+            settingsSaved: true);
 
         DialogResult = DialogResult.OK;
         Close();
     }
 
-    private bool ValidatePath(
+    private static SettingsValidationItem ValidateFolder(
         string path,
-        bool isDirectory,
-        string displayName)
-    {
-        bool exists =
-            isDirectory
-                ? Directory.Exists(path)
-                : File.Exists(path);
-
-        if (exists)
-        {
-            return true;
-        }
-
-        DialogResult result =
-            MessageBox.Show(
-                $"{displayName} was not found:\n\n" +
-                path +
-                "\n\nSave it anyway?",
-                $"{displayName} Not Found",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-
-        return result == DialogResult.Yes;
-    }
-
-    private bool ValidateOptionalExecutable(
-        string path,
-        string displayName)
+        string displayName,
+        bool required)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            return true;
+            return new SettingsValidationItem
+            {
+                Name = displayName,
+                IsValid = !required,
+                IsOptional = !required,
+                Message = required
+                    ? "Not configured."
+                    : "Not configured (optional)."
+            };
         }
 
-        return ValidatePath(
-            path,
-            isDirectory: false,
-            displayName);
+        bool exists = Directory.Exists(path);
+
+        return new SettingsValidationItem
+        {
+            Name = displayName,
+            IsValid = exists,
+            Message = exists
+                ? "Folder found."
+                : $"Folder not found: {path}"
+        };
     }
-    
-    private bool ValidateOptionalKeysFile(
+
+    private static SettingsValidationItem ValidateExecutable(
         string path,
-        string displayName)
+        string displayName,
+        bool required)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            return true;
+            return new SettingsValidationItem
+            {
+                Name = displayName,
+                IsValid = !required,
+                IsOptional = !required,
+                Message = required
+                    ? "Not configured."
+                    : "Not configured (optional)."
+            };
         }
 
-        if (File.Exists(path))
+        bool exists = File.Exists(path);
+
+        return new SettingsValidationItem
         {
-            return true;
+            Name = displayName,
+            IsValid = exists,
+            Message = exists
+                ? "Executable found."
+                : $"Executable not found: {path}"
+        };
+    }
+
+    private static SettingsValidationItem ValidateKeysFile(
+        string path,
+        string displayName,
+        bool required)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return new SettingsValidationItem
+            {
+                Name = displayName,
+                IsValid = !required,
+                IsOptional = !required,
+                Message = required
+                    ? "Not configured."
+                    : "Not configured (optional)."
+            };
         }
 
-        DialogResult result =
-            MessageBox.Show(
-                $"{displayName} was not found:\n\n" +
-                path +
-                "\n\nSave it anyway?",
-                $"{displayName} Not Found",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
+        if (!File.Exists(path))
+        {
+            return new SettingsValidationItem
+            {
+                Name = displayName,
+                IsValid = false,
+                Message = $"File not found: {path}"
+            };
+        }
 
-        return result == DialogResult.Yes;
+        try
+        {
+            SwitchKeyLoader keyLoader = new();
+
+            SwitchKeySet keySet =
+                keyLoader.Load(path);
+
+            return new SettingsValidationItem
+            {
+                Name = displayName,
+                IsValid = keySet.Count > 0,
+                Message = keySet.Count > 0
+                    ? $"Loaded successfully ({keySet.Count} entries)."
+                    : "The file contains no valid key entries."
+            };
+        }
+        catch (Exception exception)
+        {
+            return new SettingsValidationItem
+            {
+                Name = displayName,
+                IsValid = false,
+                Message = exception.Message
+            };
+        }
+    }
+
+    private void ShowValidationReport(
+        IReadOnlyCollection<SettingsValidationItem> results,
+        bool settingsSaved)
+    {
+        var lines = new List<string>
+        {
+            settingsSaved
+                ? "Settings saved successfully."
+                : "Settings were not saved.",
+            string.Empty
+        };
+
+        foreach (SettingsValidationItem result in results)
+        {
+            string symbol;
+
+            if (!result.IsValid)
+            {
+                symbol = "✗";
+            }
+            else if (result.IsOptional &&
+                     result.Message.Contains(
+                         "Not configured",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                symbol = "○";
+            }
+            else
+            {
+                symbol = "✓";
+            }
+
+            lines.Add(
+                $"{symbol} {result.Name}: {result.Message}");
+        }
+
+        MessageBox.Show(
+            string.Join(Environment.NewLine, lines),
+            settingsSaved
+                ? "Settings Verified"
+                : "Settings Validation Failed",
+            MessageBoxButtons.OK,
+            settingsSaved
+                ? MessageBoxIcon.Information
+                : MessageBoxIcon.Warning);
     }
 
     private void OpenSettingsFolder()
