@@ -1,8 +1,33 @@
-﻿bin/
+﻿# Build output
+bin/
 obj/
+
+# Visual Studio
 .vs/
 *.user
 *.suo
-*.cache
+
+# VS Code
+.history/
+
+# Rider
+.idea/
+
+# Logs
 *.log
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# NuGet
+*.nupkg
+
+# Publish
 publish/
+
+# Generated runtime files
+AppData/
+
+# OS
+.DS_Store
