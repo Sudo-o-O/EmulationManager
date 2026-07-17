@@ -16,4 +16,6 @@ public sealed class AppSettings
 
     public LauncherSettings EdenNightlyLauncher { get; set; } =
         new();
+
+    public SwitchSettings Switch { get; set; } = new();
 }

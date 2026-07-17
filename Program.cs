@@ -97,6 +97,7 @@ internal static class Program
                 paths,
                 libraryScanner,
                 emulatorService,
-                settingsService));
+                settingsService,
+                steamExportService));
     }
 }

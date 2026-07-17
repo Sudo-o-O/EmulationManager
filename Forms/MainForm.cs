@@ -12,6 +12,8 @@ public sealed class MainForm : Form
     private readonly LibraryScanner libraryScanner;
     private readonly EmulatorService emulatorService;
     private readonly SettingsService settingsService;
+    private readonly SteamExportService steamExportService;
+
 
     private readonly ListView gameList = new();
     private readonly Label romStatusLabel = new();
@@ -23,12 +25,14 @@ public sealed class MainForm : Form
         AppPaths paths,
         LibraryScanner libraryScanner,
         EmulatorService emulatorService,
-        SettingsService settingsService)
+        SettingsService settingsService,
+        SteamExportService steamExportService)
     {
         this.paths = paths;
         this.libraryScanner = libraryScanner;
         this.emulatorService = emulatorService;
         this.settingsService = settingsService;
+        this.steamExportService = steamExportService;
 
         Text = "Emulation Manager TEST";
         StartPosition = FormStartPosition.CenterScreen;
@@ -60,6 +64,20 @@ public sealed class MainForm : Form
                 FontStyle.Bold),
             Location = new Point(16, 12)
         };
+
+        var steamExportButton = new Button
+        {
+            Text = "Generate Steam Export",
+            Width = 170,
+            Height = 34,
+            Anchor =
+                AnchorStyles.Top |
+                AnchorStyles.Right
+        };
+
+        steamExportButton.Click += async (_, _) =>
+            await GenerateSteamExportAsync(
+                steamExportButton);
 
         romStatusLabel.AutoSize = true;
         romStatusLabel.Location = new Point(18, 58);
@@ -141,6 +159,12 @@ public sealed class MainForm : Form
                 new Point(
                     right - openFolderButton.Width,
                     98);
+            
+            steamExportButton.Location =
+                new Point(
+                    right - steamExportButton.Width -
+                    settingsButton.Width - 15,
+                    16);
 
             launchButton.Location =
                 new Point(
@@ -156,6 +180,7 @@ public sealed class MainForm : Form
         topPanel.Controls.Add(openFolderButton);
         topPanel.Controls.Add(launchButton);
         topPanel.Controls.Add(settingsButton);
+        topPanel.Controls.Add(steamExportButton);
 
         summaryLabel.Dock = DockStyle.Top;
         summaryLabel.Height = 38;
@@ -365,26 +390,76 @@ public sealed class MainForm : Form
         dialog.ShowDialog(this);
     }
 
-    private static void OpenFolder(
-        string folder)
-    {
-        if (!Directory.Exists(folder))
+        private async Task GenerateSteamExportAsync(
+            Button button)
         {
-            MessageBox.Show(
-                $"Folder not found:\n\n{folder}",
-                "Folder Missing",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            try
+            {
+                button.Enabled = false;
+                button.Text = "Generating...";
 
-            return;
+                int gameCount =
+                    await steamExportService.ExportAsync();
+
+                string exportFolder =
+                    Path.Combine(
+                        Environment.GetFolderPath(
+                            Environment.SpecialFolder.LocalApplicationData),
+                        "EmulationManager",
+                        "SteamExport");
+
+                MessageBox.Show(
+                    $"Created a Steam export for " +
+                    $"{gameCount} game(s).\n\n" +
+                    $"Export folder:\n{exportFolder}",
+                    "Steam Export Complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                if (Directory.Exists(exportFolder))
+                {
+                    Process.Start(
+                        new ProcessStartInfo
+                        {
+                            FileName = exportFolder,
+                            UseShellExecute = true
+                        });
+                }
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    exception.Message,
+                    "Steam Export Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                button.Enabled = true;
+                button.Text = "Generate Steam Export";
+            }
         }
 
-        Process.Start(
-            new ProcessStartInfo
+        private static void OpenFolder(
+            string folder)
+        {
+            if (!Directory.Exists(folder))
             {
-                FileName = folder,
-                UseShellExecute = true
-            });
-    }
-}
+                MessageBox.Show(
+                    $"Folder not found:\n\n{folder}",
+                    "Folder Missing",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
 
+                return;
+            }
+
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+}
+}

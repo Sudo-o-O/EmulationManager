@@ -14,6 +14,9 @@ public sealed class SettingsForm : Form
     private readonly TextBox stableTextBox = new();
     private readonly TextBox nightlyTextBox = new();
 
+    private readonly TextBox prodKeysTextBox = new();
+    private readonly TextBox titleKeysTextBox = new();
+
     private readonly ComboBox stableMethodComboBox = new();
     private readonly ComboBox nightlyMethodComboBox = new();
 
@@ -28,9 +31,9 @@ public sealed class SettingsForm : Form
 
         Text = "Emulation Manager Settings";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(780, 540);
-        MinimumSize = new Size(780, 540);
-        MaximumSize = new Size(780, 540);
+        ClientSize = new Size(780, 690);
+        MinimumSize = new Size(780, 690);
+        MaximumSize = new Size(780, 690);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -56,7 +59,7 @@ public sealed class SettingsForm : Form
         {
             Text =
                 "Choose your ROM folder, Eden executables, " +
-                "and the default launch method for each launcher.",
+                "launch defaults, and Nintendo Switch keys.",
             AutoSize = true,
             Location = new Point(24, 56)
         };
@@ -139,6 +142,44 @@ public sealed class SettingsForm : Form
             24,
             376);
 
+        var prodKeysLabel = CreateLabel(
+            "Nintendo Switch prod.keys",
+            24,
+            420);
+
+        prodKeysTextBox.Text =
+            currentSettings.Switch.ProdKeysPath;
+
+        prodKeysTextBox.Location =
+            new Point(24, 442);
+
+        prodKeysTextBox.Size =
+            new Size(610, 27);
+
+        var prodKeysBrowseButton = CreateBrowseButton(
+            648,
+            440,
+            (_, _) => BrowseForKeysFile(prodKeysTextBox));
+
+        var titleKeysLabel = CreateLabel(
+            "Nintendo Switch title.keys (optional)",
+            24,
+            482);
+
+        titleKeysTextBox.Text =
+            currentSettings.Switch.TitleKeysPath;
+
+        titleKeysTextBox.Location =
+            new Point(24, 504);
+
+        titleKeysTextBox.Size =
+            new Size(610, 27);
+
+        var titleKeysBrowseButton = CreateBrowseButton(
+            648,
+            502,
+            (_, _) => BrowseForKeysFile(titleKeysTextBox));
+
         var explanationLabel = new Label
         {
             Text =
@@ -146,14 +187,14 @@ public sealed class SettingsForm : Form
                 "Direct: starts Eden directly.  " +
                 "Detached: launches through Explorer and a generated shortcut.  " +
                 "Ask: prompts each time.",
-            Location = new Point(24, 420),
+            Location = new Point(24, 548),
             Size = new Size(710, 42)
         };
 
         var openSettingsButton = new Button
         {
             Text = "Open Settings Folder",
-            Location = new Point(24, 476),
+            Location = new Point(24, 626),
             Size = new Size(165, 36)
         };
 
@@ -163,7 +204,7 @@ public sealed class SettingsForm : Form
         var saveButton = new Button
         {
             Text = "Save",
-            Location = new Point(526, 476),
+            Location = new Point(526, 626),
             Size = new Size(105, 36)
         };
 
@@ -173,7 +214,7 @@ public sealed class SettingsForm : Form
         var cancelButton = new Button
         {
             Text = "Cancel",
-            Location = new Point(648, 476),
+            Location = new Point(648, 626),
             Size = new Size(105, 36),
             DialogResult = DialogResult.Cancel
         };
@@ -199,6 +240,14 @@ public sealed class SettingsForm : Form
         Controls.Add(nightlyBrowseButton);
         Controls.Add(nightlyMethodLabel);
         Controls.Add(nightlyMethodComboBox);
+
+        Controls.Add(prodKeysLabel);
+        Controls.Add(prodKeysTextBox);
+        Controls.Add(prodKeysBrowseButton);
+
+        Controls.Add(titleKeysLabel);
+        Controls.Add(titleKeysTextBox);
+        Controls.Add(titleKeysBrowseButton);
 
         Controls.Add(explanationLabel);
         Controls.Add(openSettingsButton);
@@ -323,6 +372,38 @@ public sealed class SettingsForm : Form
                 dialog.FileName;
         }
     }
+    private void BrowseForKeysFile(
+        TextBox destinationTextBox)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Select Nintendo Switch keys file",
+            Filter =
+                "Keys files (*.keys)|*.keys|" +
+                "All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        string currentPath =
+            destinationTextBox.Text;
+
+        if (File.Exists(currentPath))
+        {
+            dialog.InitialDirectory =
+                Path.GetDirectoryName(currentPath);
+
+            dialog.FileName =
+                Path.GetFileName(currentPath);
+        }
+
+        if (dialog.ShowDialog(this) ==
+            DialogResult.OK)
+        {
+            destinationTextBox.Text =
+                dialog.FileName;
+        }
+    }
 
     private void SaveSettings()
     {
@@ -334,6 +415,12 @@ public sealed class SettingsForm : Form
 
         string nightlyPath =
             nightlyTextBox.Text.Trim();
+        
+        string prodKeysPath =
+            prodKeysTextBox.Text.Trim();
+
+        string titleKeysPath =
+            titleKeysTextBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(romRoot))
         {
@@ -365,6 +452,20 @@ public sealed class SettingsForm : Form
         if (!ValidateOptionalExecutable(
                 nightlyPath,
                 "Eden Nightly"))
+        {
+            return;
+        }
+        
+        if (!ValidateOptionalKeysFile(
+            prodKeysPath,
+            "prod.keys"))
+        {
+            return;
+        }
+
+        if (!ValidateOptionalKeysFile(
+                titleKeysPath,
+                "title.keys"))
         {
             return;
         }
@@ -401,7 +502,13 @@ public sealed class SettingsForm : Form
                     currentSettings
                         .EdenNightlyLauncher
                         .GameOverrides
-            }
+            },
+
+            Switch = new SwitchSettings
+            {
+                ProdKeysPath = prodKeysPath,
+                TitleKeysPath = titleKeysPath
+            },
         };
 
         settingsService.Save(SavedSettings);
@@ -450,6 +557,32 @@ public sealed class SettingsForm : Form
             path,
             isDirectory: false,
             displayName);
+    }
+    
+    private bool ValidateOptionalKeysFile(
+        string path,
+        string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return true;
+        }
+
+        if (File.Exists(path))
+        {
+            return true;
+        }
+
+        DialogResult result =
+            MessageBox.Show(
+                $"{displayName} was not found:\n\n" +
+                path +
+                "\n\nSave it anyway?",
+                $"{displayName} Not Found",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+        return result == DialogResult.Yes;
     }
 
     private void OpenSettingsFolder()

@@ -111,6 +111,7 @@ public sealed class SettingsService
 
         settings.EdenStableLauncher ??= new LauncherSettings();
         settings.EdenNightlyLauncher ??= new LauncherSettings();
+        settings.Switch ??= new SwitchSettings();
 
         settings.EdenStableLauncher.GameOverrides ??=
             new Dictionary<string, string>(
