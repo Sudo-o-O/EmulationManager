@@ -5,6 +5,7 @@ using EmulationManager.Models;
 using EmulationManager.Services;
 using EmulationManager.Metadata;
 using EmulationManager.Switch;
+using EmulationManager.Steam;
 
 
 
@@ -61,6 +62,21 @@ internal static class Program
         GameIdService gameIdService =
             new(metadataService);
             
+        LibraryBuilder libraryBuilder =
+            new(gameIdService);
+
+        SteamGameBuilder steamGameBuilder =
+            new(gameIdService);
+
+        SteamRomManagerExportService steamIntegrationService =
+            new();
+
+        SteamExportService steamExportService =
+            new(
+                libraryScanner,
+                steamGameBuilder,
+                steamIntegrationService);
+
         if (LaunchArguments.TryParse(
                 args,
                 out LaunchArguments? launchArguments))
