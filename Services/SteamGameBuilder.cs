@@ -1,32 +1,29 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-using EmulationManager.Models;
+﻿using EmulationManager.Models;
 
 namespace EmulationManager.Services;
 
 public sealed class SteamGameBuilder
 {
+    private readonly GameIdService gameIdService;
     private readonly string managerExecutablePath;
 
-    public SteamGameBuilder()
+    public SteamGameBuilder(
+        GameIdService gameIdService)
     {
+        this.gameIdService = gameIdService;
+
         managerExecutablePath =
             Environment.ProcessPath
             ?? throw new InvalidOperationException(
-                "The Emulation Manager executable path could not be determined.");
+                "The Emulation Manager executable path " +
+                "could not be determined.");
     }
 
     public IReadOnlyList<SteamGameEntry> Build(
         IReadOnlyCollection<GameFile> files)
     {
         return files
-            .Where(file =>
-                file.ContentType.Equals(
-                    "Base Game",
-                    StringComparison.OrdinalIgnoreCase) ||
-                file.ContentType.Equals(
-                    "Game",
-                    StringComparison.OrdinalIgnoreCase))
+            .Where(IsLaunchableGame)
             .GroupBy(
                 file => new
                 {
@@ -40,10 +37,7 @@ public sealed class SteamGameBuilder
 
                 return new SteamGameEntry
                 {
-                    Id = CreateStableId(
-                        game.ConsoleName,
-                        game.GameName),
-
+                    Id = gameIdService.CreateId(game),
                     Title = game.GameName,
                     ConsoleName = game.ConsoleName,
                     RomPath = game.FullPath,
@@ -57,18 +51,14 @@ public sealed class SteamGameBuilder
             .ToList();
     }
 
-    private static string CreateStableId(
-        string consoleName,
-        string gameName)
+    private static bool IsLaunchableGame(
+        GameFile game)
     {
-        string source =
-            $"{consoleName.Trim().ToUpperInvariant()}|" +
-            gameName.Trim().ToUpperInvariant();
-
-        byte[] hash =
-            SHA256.HashData(
-                Encoding.UTF8.GetBytes(source));
-
-        return Convert.ToHexString(hash)[..16];
+        return game.ContentType.Equals(
+                   "Base Game",
+                   StringComparison.OrdinalIgnoreCase) ||
+               game.ContentType.Equals(
+                   "Game",
+                   StringComparison.OrdinalIgnoreCase);
     }
 }
