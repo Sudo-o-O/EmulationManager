@@ -61,12 +61,12 @@ internal static class Program
 
         GameIdService gameIdService =
             new(metadataService);
-            
+
         LibraryBuilder libraryBuilder =
             new(gameIdService);
 
         SteamGameBuilder steamGameBuilder =
-            new(gameIdService);
+            new();
 
         SteamRomManagerExportService steamIntegrationService =
             new();
@@ -74,6 +74,7 @@ internal static class Program
         SteamExportService steamExportService =
             new(
                 libraryScanner,
+                libraryBuilder,
                 steamGameBuilder,
                 steamIntegrationService);
 
