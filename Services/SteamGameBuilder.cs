@@ -1,10 +1,12 @@
 ﻿using EmulationManager.Models;
+using EmulationManager.Steam;
 
 namespace EmulationManager.Services;
 
 public sealed class SteamGameBuilder
 {
     private readonly string managerExecutablePath;
+    private readonly string managerWorkingDirectory;
 
     public SteamGameBuilder()
     {
@@ -13,25 +15,43 @@ public sealed class SteamGameBuilder
             ?? throw new InvalidOperationException(
                 "The Emulation Manager executable path " +
                 "could not be determined.");
+
+        managerWorkingDirectory =
+            Path.GetDirectoryName(managerExecutablePath)
+            ?? throw new InvalidOperationException(
+                "The Emulation Manager working directory " +
+                "could not be determined.");
     }
 
-    public IReadOnlyList<SteamGameEntry> Build(
+    public IReadOnlyList<SteamShortcut> Build(
         IReadOnlyCollection<LibraryGame> games)
     {
         return games
             .Select(game =>
-                new SteamGameEntry
+                new SteamShortcut
                 {
-                    Id = game.Id,
-                    Title = game.Title,
-                    ConsoleName = game.ConsoleName,
-                    RomPath = game.BaseGame.FullPath,
+                    ManagedId = game.Id,
+                    Name = game.Title,
 
-                    ManagerExecutablePath =
-                        managerExecutablePath
+                    ExecutablePath =
+                        managerExecutablePath,
+
+                    StartDirectory =
+                        managerWorkingDirectory,
+
+                    LaunchArguments =
+                        $"--game-id \"{game.Id}\"",
+
+                    Tags =
+                    [
+                        "EmulationManager",
+                        game.ConsoleName
+                    ],
+
+                    AllowDesktopConfig = true,
+                    AllowOverlay = true
                 })
-            .OrderBy(game => game.ConsoleName)
-            .ThenBy(game => game.Title)
+            .OrderBy(shortcut => shortcut.Name)
             .ToList();
     }
 }

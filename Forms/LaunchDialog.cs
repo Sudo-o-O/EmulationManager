@@ -8,6 +8,7 @@ namespace EmulationManager.Forms;
 public sealed class LaunchDialog : Form
 {
     private readonly LaunchArguments launchArguments;
+    private readonly string romPath;
     private readonly EmulatorService emulatorService;
     private readonly SettingsService settingsService;
     private readonly AppSettings settings;
@@ -24,6 +25,21 @@ public sealed class LaunchDialog : Form
         SettingsService settingsService,
         AppSettings settings)
     {
+        string resolvedRomPath =
+            launchArguments.RomPath
+            ?? throw new ArgumentException(
+                "A ROM path is required to open the launch dialog.",
+                nameof(launchArguments));
+
+        if (string.IsNullOrWhiteSpace(resolvedRomPath))
+        {
+            throw new ArgumentException(
+                "A ROM path is required to open the launch dialog.",
+                nameof(launchArguments));
+        }
+
+        romPath = resolvedRomPath;
+
         this.launchArguments = launchArguments;
         this.emulatorService = emulatorService;
         this.settingsService = settingsService;
@@ -45,7 +61,7 @@ public sealed class LaunchDialog : Form
         var titleLabel = new Label
         {
             Text = Path.GetFileNameWithoutExtension(
-                launchArguments.RomPath),
+                romPath),
 
             AutoEllipsis = true,
             Font = new Font(
@@ -182,7 +198,7 @@ public sealed class LaunchDialog : Form
             Process process =
                 await emulatorService.LaunchAsync(
                     emulator,
-                    launchArguments.RomPath,
+                    romPath,
                     method);
 
             Hide();
@@ -238,7 +254,7 @@ public sealed class LaunchDialog : Form
 
         string gameKey =
             NormalizeGameKey(
-                launchArguments.RomPath);
+                romPath);
 
         if (launcherSettings.GameOverrides.TryGetValue(
                 gameKey,
@@ -277,7 +293,7 @@ public sealed class LaunchDialog : Form
 
         string gameKey =
             NormalizeGameKey(
-                launchArguments.RomPath);
+                romPath);
 
         if (launcherSettings.GameOverrides.TryGetValue(
                 gameKey,
@@ -302,7 +318,7 @@ public sealed class LaunchDialog : Form
             GetLauncherSettings(emulator);
 
         launcherSettings.GameOverrides[
-            NormalizeGameKey(launchArguments.RomPath)] =
+            NormalizeGameKey(romPath)] =
             method.ToString();
 
         settingsService.Save(settings);

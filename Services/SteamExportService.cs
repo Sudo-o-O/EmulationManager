@@ -33,13 +33,13 @@ public sealed class SteamExportService
                 files,
                 cancellationToken);
 
-        IReadOnlyList<SteamGameEntry> steamGames =
+        IReadOnlyList<SteamShortcut> steamShortcuts =
             steamGameBuilder.Build(libraryGames);
 
         await steamIntegrationService.ExportAsync(
-            steamGames,
+            steamShortcuts,
             cancellationToken);
 
-        return steamGames.Count;
+        return steamShortcuts.Count;
     }
 }

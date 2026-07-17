@@ -29,16 +29,17 @@ public sealed class SteamRomManagerExportService
     public bool IsAvailable => true;
 
     public Task ExportAsync(
-        IReadOnlyCollection<SteamGameEntry> games,
+        IReadOnlyCollection<SteamShortcut> shortcuts,
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(exportDirectory);
 
         var manifest = new SteamExportManifest
         {
-            Games = games
-                .OrderBy(game => game.ConsoleName)
-                .ThenBy(game => game.Title)
+            GeneratedUtc = DateTime.UtcNow,
+
+            Shortcuts = shortcuts
+                .OrderBy(shortcut => shortcut.Name)
                 .ToList()
         };
 

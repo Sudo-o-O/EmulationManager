@@ -2,7 +2,9 @@
 
 public sealed class LaunchArguments
 {
-    public required string RomPath { get; init; }
+    public string? RomPath { get; init; }
+
+    public string? GameId { get; init; }
 
     public static bool TryParse(
         string[] args,
@@ -15,23 +17,38 @@ public sealed class LaunchArguments
             return false;
         }
 
-        if (!args[0].Equals(
-                "--launch",
-                StringComparison.OrdinalIgnoreCase))
+        for (int index = 0;
+             index < args.Length - 1;
+             index++)
         {
-            return false;
+            string option = args[index];
+            string value = args[index + 1];
+
+            if (option.Equals(
+                    "--launch",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                result = new LaunchArguments
+                {
+                    RomPath = value
+                };
+
+                return true;
+            }
+
+            if (option.Equals(
+                    "--game-id",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                result = new LaunchArguments
+                {
+                    GameId = value
+                };
+
+                return true;
+            }
         }
 
-        if (string.IsNullOrWhiteSpace(args[1]))
-        {
-            return false;
-        }
-
-        result = new LaunchArguments
-        {
-            RomPath = Path.GetFullPath(args[1])
-        };
-
-        return true;
+        return false;
     }
 }

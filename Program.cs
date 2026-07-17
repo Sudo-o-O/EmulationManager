@@ -64,6 +64,11 @@ internal static class Program
 
         LibraryBuilder libraryBuilder =
             new(gameIdService);
+        
+        GameLibraryService gameLibraryService =
+            new(
+                libraryScanner,
+                libraryBuilder);
 
         SteamGameBuilder steamGameBuilder =
             new();
@@ -82,9 +87,45 @@ internal static class Program
                 args,
                 out LaunchArguments? launchArguments))
         {
+            LaunchArguments resolvedArguments =
+                launchArguments!;
+
+            if (!string.IsNullOrWhiteSpace(
+                    launchArguments!.GameId))
+            {
+                LibraryGame? game =
+                    gameLibraryService
+                        .FindByIdAsync(
+                            launchArguments.GameId)
+                        .GetAwaiter()
+                        .GetResult();
+
+                if (game is null)
+                {
+                    MessageBox.Show(
+                        $"The game could not be found:\n\n" +
+                        launchArguments.GameId,
+                        "Game Not Found",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+
+                    return;
+                }
+
+                resolvedArguments =
+                    new LaunchArguments
+                    {
+                        RomPath =
+                            game.BaseGame.FullPath,
+
+                        GameId =
+                            game.Id
+                    };
+            }
+
             Application.Run(
                 new LaunchDialog(
-                    launchArguments!,
+                    resolvedArguments,
                     emulatorService,
                     settingsService,
                     settings));

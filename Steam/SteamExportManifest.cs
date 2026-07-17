@@ -1,11 +1,13 @@
-﻿using EmulationManager.Models;
-
-namespace EmulationManager.Steam;
+﻿namespace EmulationManager.Steam;
 
 public sealed class SteamExportManifest
 {
     public DateTime GeneratedUtc { get; init; } =
         DateTime.UtcNow;
 
-    public List<SteamGameEntry> Games { get; init; } = [];
+    public IReadOnlyList<SteamShortcut> Shortcuts
+    {
+        get;
+        init;
+    } = [];
 }

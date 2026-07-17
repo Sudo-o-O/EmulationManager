@@ -1,14 +1,8 @@
-﻿using EmulationManager.Models;
-
-namespace EmulationManager.Steam;
+﻿namespace EmulationManager.Steam;
 
 public interface ISteamIntegrationService
 {
-    string Name { get; }
-
-    bool IsAvailable { get; }
-
     Task ExportAsync(
-        IReadOnlyCollection<SteamGameEntry> games,
+        IReadOnlyCollection<SteamShortcut> shortcuts,
         CancellationToken cancellationToken = default);
 }
