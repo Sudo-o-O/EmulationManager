@@ -1,46 +1,39 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
+using EmulationManager.Metadata;
 using EmulationManager.Models;
 
 namespace EmulationManager.Services;
 
-public sealed partial class GameIdService
+public sealed class GameIdService
 {
-    public string CreateId(GameFile game)
-    {
-        if (game.ConsoleName.Equals(
-                "Switch",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            string? switchTitleId =
-                ExtractSwitchTitleId(game.FileName);
+    private readonly GameMetadataService metadataService;
 
-            if (switchTitleId is not null)
-            {
-                return $"switch:{switchTitleId}";
-            }
+    public GameIdService(
+        GameMetadataService metadataService)
+    {
+        this.metadataService = metadataService;
+    }
+
+    public async Task<string> CreateIdAsync(
+        GameFile game,
+        CancellationToken cancellationToken = default)
+    {
+        GameMetadata? metadata =
+            await metadataService.ReadAsync(
+                game,
+                cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(metadata?.TitleId))
+        {
+            return
+                $"{Normalize(game.ConsoleName)}:" +
+                metadata.TitleId.ToUpperInvariant();
         }
 
         return CreateFallbackId(
             game.ConsoleName,
             game.GameName);
-    }
-
-    private static string? ExtractSwitchTitleId(
-        string fileName)
-    {
-        Match match =
-            SwitchTitleIdRegex().Match(fileName);
-
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        return match.Groups[1]
-            .Value
-            .ToUpperInvariant();
     }
 
     private static string CreateFallbackId(
@@ -65,13 +58,7 @@ public sealed partial class GameIdService
         return new string(
             value.Trim()
                 .ToLowerInvariant()
-                .Where(character =>
-                    char.IsLetterOrDigit(character))
+                .Where(char.IsLetterOrDigit)
                 .ToArray());
     }
-
-    [GeneratedRegex(
-        @"\[([0-9A-Fa-f]{16})\]",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex SwitchTitleIdRegex();
 }
