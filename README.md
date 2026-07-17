@@ -107,24 +107,51 @@ dotnet run
 
 ## Roadmap
 
-### Version 0.2
+### Version 0.2 — Steam Integration
 
-- [ ] Steam Export
-- [ ] Steam Synchronization
-- [ ] Metadata System
-- [ ] Artwork Downloading
+- [ ] Steam shortcut generation
+- [ ] Steam synchronization
+- [ ] Stable game library IDs
+- [ ] SteamGridDB artwork support
 
-### Version 0.3
+---
 
-- [ ] Multiple Emulator Support
-- [ ] Linux Support
-- [ ] Steam Deck Support
+### Version 0.3 — Library & Metadata
+
+- [ ] Game metadata
+- [ ] Favorites
+- [ ] Recently Played
+- [ ] Recently Added
+- [ ] Duplicate detection (Base / Update / DLC)
+
+---
+
+### Version 0.4 — Multi-Emulator Support
+
+- [ ] Dolphin
+- [ ] RPCS3
+- [ ] PCSX2
+- [ ] DuckStation
+- [ ] Cemu
+- [ ] Xenia
+
+---
+
+### Version 0.5 — Cross Platform
+
+- [ ] Linux support
+- [ ] Steam Deck support
+- [ ] Native Linux launch strategies
+
+---
 
 ### Version 1.0
 
-- [ ] Plugin System
-- [ ] Auto Updates
-- [ ] Cross-platform Release
+- [ ] Plugin system
+- [ ] Automatic updates
+- [ ] Cross-platform releases
+- [ ] Complete documentation
+- [ ] Public release
 
 ---
 
