@@ -92,7 +92,9 @@ public sealed class WindowsShortcutService
 
         try
         {
-            shell = Activator.CreateInstance(shellType);
+            shell = Activator.CreateInstance(shellType)
+                ?? throw new InvalidOperationException(
+                    "Windows Script Host could not be started.");
 
             shortcut =
                 shell.CreateShortcut(shortcutPath);
